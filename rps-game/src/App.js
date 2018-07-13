@@ -12,8 +12,6 @@ import './css/open-sans.css'
 import './css/pure-min.css'
 import './App.css'
 import { join } from 'path';
-import 'react-tabs/style/react-tabs.css';
-import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 
 class App extends Component {
   constructor(props) {
@@ -119,6 +117,40 @@ class App extends Component {
               myGamesMap[gameCreated.address] = myNewGame;
               this.setState({ myGames: myGamesMap });
               console.log("popultaed mygames");
+
+              // TODO watch for play move, reveal move events
+              const contract = require('truffle-contract')
+              const gameContract = contract(RpsContact)
+              gameContract.setProvider(this.state.web3.currentProvider)
+              // hardcoded for using ganache test rpc
+              gameContract.defaults({
+                gas: 2100000,
+                gasPrice: 20000000000,
+              })
+
+              var gameInstance = gameContract.at(gameCreated.address);
+              var playMoveEvent = gameInstance.LogPlayerMove({}, { fromBlock: 0, toBlock: 'latest' });
+              playMoveEvent.watch((error, result) => {
+                if (!error) {
+                  console.log("PLAYED MOVE MOVE MOVE: " + JSON.stringify(result.args));
+                  var gameAdd = result.args.game;
+                  var playerAdd = result.args.player;
+                  var secretMove = result.args.secretMove;
+
+                  var gameMap = this.state.myGames;
+                  var game = gameMap[gameAdd];
+
+                  // game is undefined
+                  var players = game.players;
+
+                  players.forEach(element => {
+                    if (element.address == playerAdd) {
+                      element.secretMove = secretMove;
+                      this.setState({ myGames: gameMap });
+                    }
+                  });
+                }
+              });
             }
           }
         })
@@ -128,10 +160,10 @@ class App extends Component {
           if (!error) {
             console.log("game joined " + JSON.stringify(result));
             var joinLog =
-              {
-                address: result.args.gameAddress,
-                player: result.args.player
-              };
+            {
+              address: result.args.gameAddress,
+              player: result.args.player
+            };
             var gameMap = this.state.myGames;
             var gameAddr = joinLog.address;
             var game = gameMap[gameAddr];
@@ -181,7 +213,7 @@ class App extends Component {
     this.state.gameHubInstance.joinGame(gameAddress, { from: this.state.user, value: cost })
   }
 
-  handlePlayMove = (gameAddress, move) => {
+  handlePlayMove = (gameAddress, move, password) => {
     alert("GA: " + gameAddress + "Play move: " + move);
 
     const contract = require('truffle-contract')
@@ -194,28 +226,32 @@ class App extends Component {
     })
 
     var rps = gameContract.at(gameAddress);
-    rps.createSecretMove(this.state.user, move, "hugh").then((result) => {
+
+    // Create the secret move with the constant contract function and use the hashed result as the secret
+    rps.createSecretMove(this.state.user, move, password).then((result) => {
       console.log("result: " + JSON.stringify(result));
-      rps.playMove(result, {from: this.state.user}).then((txObj) => {
-        // address indexed game, address player, bytes32 secretMove);
-        console.log("Got playMove log");
-        var gameAdd = txObj.logs[0].args.game;
-        var playerAdd = txObj.logs[0].args.player;
-        var secretMove = txObj.logs[0].args.secretMove;
-
-        var gameMap = this.state.myGames;
-        var game = gameMap[gameAdd];
-        
-        // game is undefined
-        var players = game.players;
-
-        players.forEach(element => {
-          if (element.address == playerAdd) {
-            element.secretMove = secretMove;
-            this.setState({ myGames: gameMap });
-          }
-        });
+      rps.playMove(result, { from: this.state.user }).then((txObj) => {
+        console.log("playMove success");
       });
+    })
+  }
+
+  handleRevealMove = (gameAddress, move) => {
+    alert("GA: " + gameAddress + "Play move: " + move);
+
+    const contract = require('truffle-contract')
+    const gameContract = contract(RpsContact)
+    gameContract.setProvider(this.state.web3.currentProvider)
+    // hardcoded for using ganache test rpc
+    gameContract.defaults({
+      gas: 2100000,
+      gasPrice: 20000000000,
+    })
+
+    var rps = gameContract.at(gameAddress);
+    rps.revealedMove(this.state.user, move, "hugh").then((result) => {
+      console.log("result: " + JSON.stringify(result));
+
     })
   }
 
@@ -226,32 +262,33 @@ class App extends Component {
   // 2. Result table - game - winning address - winning amount
   //    
   render() {
-        return(
+    return (
       <div>
-      <div className="App">
-        <nav className="navbar pure-menu pure-menu-horizontal">
-          <a href="#" className="pure-menu-heading pure-menu-link">Truffle Box</a>
-        </nav>
-        <main className="container">
-          <div className="pure-g">
-            <div className="pure-u-1-1">
-              <CreateGame
-                onCreateClick={this.handleCreateGame}
-              />
-              <h2>My Games</h2>
-              <MyGames myGames={this.state.myGames}
-                user={this.state.user}
-                onJoinClick={this.handleJoinClick}
-                onPlayMoveClick={this.handlePlayMove} />
+        <div className="App">
+          <nav className="navbar pure-menu pure-menu-horizontal">
+            <a href="#" className="pure-menu-heading pure-menu-link">Rock Paper Scissors</a>
+          </nav>
+          <main className="container">
+            <div className="pure-g">
+              <div className="pure-u-1-1">
+                <CreateGame
+                  onCreateClick={this.handleCreateGame}
+                />
+                <h2>My Games</h2>
+                <MyGames myGames={this.state.myGames}
+                  user={this.state.user}
+                  onJoinClick={this.handleJoinClick}
+                  onPlayMoveClick={this.handlePlayMove}
+                  onRevealMoveClick={this.handleRevealMove} />
+              </div>
             </div>
-          </div>
-          <h2>All Games</h2>
-          <GameTable
-            games={this.state.games}
-            onJoinClick={this.handleJoinClick}
-          />
-        </main>
-      </div>
+            <h2>All Games</h2>
+            <GameTable
+              games={this.state.games}
+              onJoinClick={this.handleJoinClick}
+            />
+          </main>
+        </div>
       </div >
     );
   }

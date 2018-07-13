@@ -15,7 +15,8 @@ class MyGames extends React.Component {
                         cost={game.cost}
                         onJoinClick={this.props.onJoinClick}
                         onPlayMoveClick={this.props.onPlayMoveClick}
-                        result = {game.result}
+                        onRevealMoveClick={this.props.onRevealMoveClick}
+                        result={game.result}
                     />
                 );
             });
@@ -46,13 +47,14 @@ class Game extends React.Component {
                 }
             }
         });
-        
+
         var gameDisplayState;
-        if (!this.props.result) {
+        if (this.props.result) {
             gameDisplayState = <FinishedState />
         }
         else if (userPlayedSecretMove && otherPlayedSecretMove) {
             gameDisplayState = <RevealMoveState
+                onRevealMoveClick={this.props.onRevealMoveClick}
             />
         }
         else if (!joined) {
@@ -171,7 +173,7 @@ class InitialState extends React.Component {
 class JoinedState extends React.Component {
     constructor(props) {
         super(props);
-        this.state = { move: '0' };
+        this.state = { move: '0', password: ''};
         this.handleChange = this.handleChange.bind(this);
         this.handleSubmit = this.handleSubmit.bind(this);
     }
@@ -180,22 +182,26 @@ class JoinedState extends React.Component {
         this.setState({ move: event.target.value });
     }
 
+    handlePasswordChange(e) {
+        this.setState({ password: e.target.value });
+    }
+
     handleSubmit(event) {
-        this.props.onPlayMoveClick(this.props.gameAddress, this.state.move);
+        this.props.onPlayMoveClick(this.props.gameAddress, this.state.move, this.state.password);
         event.preventDefault();
     }
 
     render() {
         return (
-            <form class="pure-form" onSubmit={this.handleSubmit}>
+            <form className="pure-form" onSubmit={this.handleSubmit}>
                 <fieldset>
                     <select id="move" onChange={this.handleChange}>
                         <option value='1'>Rock</option>
                         <option value='2'>Paper</option>
                         <option value='3'>Scissors</option>
                     </select>
-
-                    <button type="submit" class="pure-button pure-button-primary">Play Move</button>
+                    <input onChange={this.handlePasswordChange} placeholder="Clear-text password " />
+                    <button type="submit" className="pure-button pure-button-primary">Play Move</button>
                 </fieldset>
             </form>
         );
@@ -213,13 +219,42 @@ class PlayedSecretMoveSate extends React.Component {
 }
 
 class RevealMoveState extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { move: '0', password: ''};
+        this.handleMoveChange = this.handleMoveChange.bind(this);
+        this.handlePasswordChange = this.handlePasswordChange.bind(this);
+        this.handleSubmit = this.handleSubmit.bind(this);
+    }
+
+    handleMoveChange(event) {
+        this.setState({ move: event.target.value });
+    }
+
+    handlePasswordChange(e) {
+        this.setState({ password: e.target.value });
+    }
+
+    handleSubmit(event) {
+        this.props.onRevealMove(this.props.gameAddress, this.props.cost);
+        event.preventDefault();
+    }
+
+
     render() {
         return (
             <div>
-                <button className="pure-button pure-button-primary"
-                    onClick={() => this.props.onRevealMove(this.props.gameAddress, this.props.cost)}>
-                    Reveal Move
-                </button>
+                <form className="pure-form" onSubmit={this.handleSubmit}>
+                    <fieldset>
+                        <select id="move" onChange={this.handleMoveChange}>
+                            <option value='1'>Rock</option>
+                            <option value='2'>Paper</option>
+                            <option value='3'>Scissors</option>
+                        </select>
+                        <input onChange={this.handlePasswordChange} placeholder="Clear-text password " />
+                        <button type="submit" className="pure-button pure-button-primary">Reveal Move</button>
+                    </fieldset>
+                </form>
             </div>
         )
     }
