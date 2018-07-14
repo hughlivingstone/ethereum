@@ -85,6 +85,7 @@ class App extends Component {
     // Get accounts.
     this.state.web3.eth.getAccounts((error, accounts) => {
       this.setState({ user: accounts[0] });
+
       gameHubContract.deployed().then((instance) => {
         this.setState({ gameHubInstance: instance });
         console.log("deployed GameHub: " + instance);
@@ -106,8 +107,6 @@ class App extends Component {
             currentGames.push(gameCreated);
             this.setState({ games: currentGames });
 
-            var user = this.state.user;
-            var stat = this.state;
             if (gameCreated.player1 === this.state.user || gameCreated.player2 === this.state.user) {
               var player1 = { address: gameCreated.player1, joined: false, secretMove: "", revealedMove: "" }
               var player2 = { address: gameCreated.player2, joined: false, secretMove: "", revealedMove: "" }
@@ -116,7 +115,7 @@ class App extends Component {
               var myGamesMap = this.state.myGames;
               myGamesMap[gameCreated.address] = myNewGame;
               this.setState({ myGames: myGamesMap });
-              console.log("popultaed mygames");
+              console.log("populated mygames");
 
               // TODO watch for play move, reveal move events
               const contract = require('truffle-contract')
@@ -132,7 +131,7 @@ class App extends Component {
               var playMoveEvent = gameInstance.LogPlayerMove({}, { fromBlock: 0, toBlock: 'latest' });
               playMoveEvent.watch((error, result) => {
                 if (!error) {
-                  console.log("PLAYED MOVE MOVE MOVE: " + JSON.stringify(result.args));
+                  console.log("play move event: " + JSON.stringify(result.args));
                   var gameAdd = result.args.game;
                   var playerAdd = result.args.player;
                   var secretMove = result.args.secretMove;
@@ -146,6 +145,29 @@ class App extends Component {
                   players.forEach(element => {
                     if (element.address == playerAdd) {
                       element.secretMove = secretMove;
+                      this.setState({ myGames: gameMap });
+                    }
+                  });
+                }
+              });
+
+              var revealMoveEvent = gameInstance.LogRevealMove({}, { fromBlock: 0, toBlock: 'latest' });
+              revealMoveEvent.watch((error, result) => {
+                if (!error) {
+                  console.log("Reveled move event: " + JSON.stringify(result.args));
+                  var gameAdd = result.args.game;
+                  var playerAdd = result.args.player;
+                  var revealedMove = result.args.move;
+
+                  var gameMap = this.state.myGames;
+                  var game = gameMap[gameAdd];
+
+                  // game is undefined
+                  var players = game.players;
+
+                  players.forEach(element => {
+                    if (element.address == playerAdd) {
+                      element.revealedMove = Number(revealedMove);
                       this.setState({ myGames: gameMap });
                     }
                   });
@@ -184,6 +206,26 @@ class App extends Component {
             console.log("game joined: " + JSON.stringify(joinLog));
           }
         });
+        var gameResultEvent = instance.LogGameResult({}, { fromBlock: 0, toBlock: 'latest' });
+
+        gameResultEvent.watch((error, result) => {
+  
+          if (!error) {
+            console.log("Got game result event: " + JSON.stringify(result));
+            if (result.args.playerOne === this.state.user || result.args.playerTwo === this.state.user) {
+              var myGamesMap = this.state.myGames;
+              var game = myGamesMap[result.args.gameAddress];
+              if (game) {
+                game.complete = true;
+                game.result = result.args.result;
+                game.winningAmount = result.args.winningAmount;
+              }
+              myGamesMap[result.args.gameAddress] = game;
+              console.log('Saving game result: ' + JSON.stringify(myGamesMap[result.args.gameAddress]));
+              this.setState({ myGames: myGamesMap });
+            }
+          }
+        })
       })
     })
   }
@@ -214,7 +256,7 @@ class App extends Component {
   }
 
   handlePlayMove = (gameAddress, move, password) => {
-    alert("GA: " + gameAddress + "Play move: " + move);
+    console.log("handlePlayMove: " + gameAddress + "Play move: " + move + ", password: " + password);
 
     const contract = require('truffle-contract')
     const gameContract = contract(RpsContact)
@@ -236,8 +278,8 @@ class App extends Component {
     })
   }
 
-  handleRevealMove = (gameAddress, move) => {
-    alert("GA: " + gameAddress + "Play move: " + move);
+  handleRevealMove = (gameAddress, move, password) => {
+    console.log("GA: " + gameAddress + " Reveal move: " + move + ", password: " + password);
 
     const contract = require('truffle-contract')
     const gameContract = contract(RpsContact)
@@ -249,9 +291,10 @@ class App extends Component {
     })
 
     var rps = gameContract.at(gameAddress);
-    rps.revealedMove(this.state.user, move, "hugh").then((result) => {
+    rps.revealMove(move, password, { from: this.state.user }).then((result) => {
       console.log("result: " + JSON.stringify(result));
-
+    }).catch((error) => {
+      alert('Transaction failed -Unable to reveal move: ' + error);
     })
   }
 

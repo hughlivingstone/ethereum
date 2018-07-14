@@ -17,6 +17,8 @@ class MyGames extends React.Component {
                         onPlayMoveClick={this.props.onPlayMoveClick}
                         onRevealMoveClick={this.props.onRevealMoveClick}
                         result={game.result}
+                        complete = {game.complete}
+                        winningAmount = {game.winningAmount}
                     />
                 );
             });
@@ -49,13 +51,15 @@ class Game extends React.Component {
         });
 
         var gameDisplayState;
-        if (this.props.result) {
-            gameDisplayState = <FinishedState />
+        if (this.props.complete) {
+            gameDisplayState = <FinishedState 
+            result = {this.props.result}
+            winningAmount = {this.props.winningAmount} />
         }
         else if (userPlayedSecretMove && otherPlayedSecretMove) {
             gameDisplayState = <RevealMoveState
                 onRevealMoveClick={this.props.onRevealMoveClick}
-            />
+                gameAddress={this.props.gameAddress} />
         }
         else if (!joined) {
             gameDisplayState = <InitialState
@@ -91,12 +95,17 @@ class PlayerRow extends React.Component {
     render() {
         const player = this.props.player;
         var joinedText = player.joined ? "Yes" : "No";
+        var revealedMove = '';
+        if (player.revealedMove) {
+            var moves = { 1: 'Rock', 2: 'Paper', 3: 'Scissors' };
+            revealedMove = moves[player.revealedMove];
+        }
         return (
             <tr>
                 <td>{player.address}</td>
                 <td>{joinedText}</td>
                 <td>{player.secretMove}</td>
-                <td>{player.revealedMove}</td>
+                <td>{revealedMove}</td>
             </tr>
         );
     }
@@ -173,8 +182,9 @@ class InitialState extends React.Component {
 class JoinedState extends React.Component {
     constructor(props) {
         super(props);
-        this.state = { move: '0', password: ''};
+        this.state = { move: '1', password: '' };
         this.handleChange = this.handleChange.bind(this);
+        this.handlePasswordChange = this.handlePasswordChange.bind(this);
         this.handleSubmit = this.handleSubmit.bind(this);
     }
 
@@ -221,14 +231,14 @@ class PlayedSecretMoveSate extends React.Component {
 class RevealMoveState extends React.Component {
     constructor(props) {
         super(props);
-        this.state = { move: '0', password: ''};
+        this.state = { move: '1', password: '' };
         this.handleMoveChange = this.handleMoveChange.bind(this);
         this.handlePasswordChange = this.handlePasswordChange.bind(this);
         this.handleSubmit = this.handleSubmit.bind(this);
     }
 
-    handleMoveChange(event) {
-        this.setState({ move: event.target.value });
+    handleMoveChange(e) {
+        this.setState({ move: e.target.value });
     }
 
     handlePasswordChange(e) {
@@ -236,10 +246,9 @@ class RevealMoveState extends React.Component {
     }
 
     handleSubmit(event) {
-        this.props.onRevealMove(this.props.gameAddress, this.props.cost);
+        this.props.onRevealMoveClick(this.props.gameAddress, this.state.move, this.state.password);
         event.preventDefault();
     }
-
 
     render() {
         return (
@@ -262,9 +271,19 @@ class RevealMoveState extends React.Component {
 
 class FinishedState extends React.Component {
     render() {
+        var message = '';
+        if (this.props.result == 0) {
+            message = "Game tied - each player refunded: " + this.props.winningAmount
+        } else if (this.props.result == 1) {
+            message = "Player One wins: " + this.props.winningAmount
+        } else if (this.props.result == 2) {
+            message = "Player Two wins: " + this.props.winningAmount
+        } else {
+            message = "Invalid result found"
+        }
         return (
             <div>
-                <h2> Player 1 wins 1000 </h2>
+                <h2> {message} </h2>
             </div>
         )
     }
