@@ -64,152 +64,163 @@ class App extends Component {
       gas: 2100000,
       gasPrice: 20000000000,
     })
-    // Declaring this for later so we can chain functions on gameHubContract.
-    // var gameHubInstance;
 
     // Get accounts.
     this.state.web3.eth.getAccounts((error, accounts) => {
       this.setState({ user: accounts[0] });
 
       gameHubContract.deployed().then((instance) => {
-        this.setState({ gameHubInstance: instance });
-        console.log("deployed GameHub: " + instance);
-
-        // start watching for games
-        // event LogGameCreated(address indexed gameAddress, address indexed playerOne, address indexed playerTwo, uint cost);
-        var gameCreatedEvent = instance.LogGameCreated({}, { fromBlock: 0, toBlock: 'latest' });
-
-        gameCreatedEvent.watch((error, result) => {
-          if (!error) {
-            // Do something whenever the event happens
-            var gameCreated = {};
-            gameCreated.address = result.args.gameAddress;
-            gameCreated.player1 = result.args.playerOne;
-            gameCreated.player2 = result.args.playerTwo;
-            gameCreated.cost = result.args.cost.toString(10);
-
-            var currentGames = this.state.games;
-            currentGames.push(gameCreated);
-            this.setState({ games: currentGames });
-
-            if (gameCreated.player1 === this.state.user || gameCreated.player2 === this.state.user) {
-              var player1 = { address: gameCreated.player1, joined: false, secretMove: "", revealedMove: "" }
-              var player2 = { address: gameCreated.player2, joined: false, secretMove: "", revealedMove: "" }
-              var playersArr = [player1, player2];
-              var myNewGame = { address: gameCreated.address, players: playersArr, user: this.user, cost: gameCreated.cost };
-              var myGamesMap = this.state.myGames;
-              myGamesMap[gameCreated.address] = myNewGame;
-              this.setState({ myGames: myGamesMap });
-              console.log("populated mygames");
-
-              // TODO watch for play move, reveal move events
-              const contract = require('truffle-contract')
-              const gameContract = contract(RpsContact)
-              gameContract.setProvider(this.state.web3.currentProvider)
-              // hardcoded for using ganache test rpc
-              gameContract.defaults({
-                gas: 2100000,
-                gasPrice: 20000000000,
-              })
-
-              var gameInstance = gameContract.at(gameCreated.address);
-              var playMoveEvent = gameInstance.LogPlayerMove({}, { fromBlock: 0, toBlock: 'latest' });
-              playMoveEvent.watch((error, result) => {
-                if (!error) {
-                  console.log("play move event: " + JSON.stringify(result.args));
-                  var gameAdd = result.args.game;
-                  var playerAdd = result.args.player;
-                  var secretMove = result.args.secretMove;
-
-                  var gameMap = this.state.myGames;
-                  var game = gameMap[gameAdd];
-                  var players = game.players;
-
-                  players.forEach(element => {
-                    if (element.address == playerAdd) {
-                      element.secretMove = secretMove;
-                      this.setState({ myGames: gameMap });
-                    }
-                  });
-                }
-              });
-
-              var revealMoveEvent = gameInstance.LogRevealMove({}, { fromBlock: 0, toBlock: 'latest' });
-              revealMoveEvent.watch((error, result) => {
-                if (!error) {
-                  console.log("Reveled move event: " + JSON.stringify(result.args));
-                  var gameAdd = result.args.game;
-                  var playerAdd = result.args.player;
-                  var revealedMove = result.args.move;
-
-                  var gameMap = this.state.myGames;
-                  var game = gameMap[gameAdd];
-
-                  // game is undefined
-                  var players = game.players;
-
-                  players.forEach(element => {
-                    if (element.address == playerAdd) {
-                      element.revealedMove = Number(revealedMove);
-                      this.setState({ myGames: gameMap });
-                    }
-                  });
-                }
-              });
-            }
-          }
-        })
-
-        var gameJoinedEvent = instance.LogPlayerJoined({}, { fromBlock: 0, toBlock: 'latest' });
-        gameJoinedEvent.watch((error, result) => {
-          if (!error) {
-            console.log("game joined " + JSON.stringify(result));
-            var joinLog =
-            {
-              address: result.args.gameAddress,
-              player: result.args.player
-            };
-            var gameMap = this.state.myGames;
-            var gameAddr = joinLog.address;
-            var game = gameMap[gameAddr];
-
-            console.log("Game: " + JSON.stringify(game));
-            // game is undefined
-            var players = game.players;
-
-            players.forEach(element => {
-              console.log("checking joined: add " + element.address + ", joinLog " + joinLog.player)
-              if (element.address == joinLog.player) {
-                console.log("Setting joined true")
-                element.joined = true;
-                this.setState({ myGames: gameMap });
-              }
-            });
-            console.log("game joined: " + JSON.stringify(joinLog));
-          }
-        });
-        var gameResultEvent = instance.LogGameResult({}, { fromBlock: 0, toBlock: 'latest' });
-
-        gameResultEvent.watch((error, result) => {
-
-          if (!error) {
-            console.log("Got game result event: " + JSON.stringify(result));
-            if (result.args.playerOne === this.state.user || result.args.playerTwo === this.state.user) {
-              var myGamesMap = this.state.myGames;
-              var game = myGamesMap[result.args.gameAddress];
-              if (game) {
-                game.complete = true;
-                game.result = result.args.result;
-                game.winningAmount = result.args.winningAmount;
-              }
-              myGamesMap[result.args.gameAddress] = game;
-              console.log('Saving game result: ' + JSON.stringify(myGamesMap[result.args.gameAddress]));
-              this.setState({ myGames: myGamesMap });
-            }
-          }
-        })
+        this.setupEventWatchers(instance);
       })
     })
+  }
+
+  setupEventWatchers(instance) {
+    this.setState({ gameHubInstance: instance });
+    console.log("deployed GameHub: " + instance);
+    var gameCreatedEvent = instance.LogGameCreated({}, { fromBlock: 0, toBlock: 'latest' });
+    gameCreatedEvent.watch((error, result) => {
+      if (!error) {
+        this.processGameCreatedEvent(result);
+      }
+    });
+    var gameJoinedEvent = instance.LogPlayerJoined({}, { fromBlock: 0, toBlock: 'latest' });
+    gameJoinedEvent.watch((error, result) => {
+      if (!error) {
+        this.processGameJoinEvent(result);
+      }
+    });
+    var gameResultEvent = instance.LogGameResult({}, { fromBlock: 0, toBlock: 'latest' });
+    gameResultEvent.watch((error, result) => {
+      if (!error) {
+        this.processGameResultEvent(result);
+      }
+    });
+  }
+
+  processGameCreatedEvent(result) {
+    var gameCreated = {};
+    gameCreated.address = result.args.gameAddress;
+    gameCreated.player1 = result.args.playerOne;
+    gameCreated.player2 = result.args.playerTwo;
+    gameCreated.cost = result.args.cost.toString(10);
+    var currentGames = this.state.games;
+    currentGames.push(gameCreated);
+    this.setState({ games: currentGames });
+    if (gameCreated.player1 === this.state.user || gameCreated.player2 === this.state.user) {
+      this.addGameCreatedToState(gameCreated);
+      
+      var gameInstance = this.getGameContractInstance(gameCreated.address);
+      this.setupInGameEventWatchers(gameInstance);
+    }
+  }
+
+  addGameCreatedToState(gameCreated) {
+    var player1 = { address: gameCreated.player1, joined: false, secretMove: "", revealedMove: "" };
+    var player2 = { address: gameCreated.player2, joined: false, secretMove: "", revealedMove: "" };
+    var playersArr = [player1, player2];
+    var myNewGame = { address: gameCreated.address, players: playersArr, user: this.user, cost: gameCreated.cost };
+    var myGamesMap = this.state.myGames;
+    myGamesMap[gameCreated.address] = myNewGame;
+    this.setState({ myGames: myGamesMap });
+  }
+
+  getGameContractInstance(gameAddress) {
+    const contract = require('truffle-contract');
+    const gameContract = contract(RpsContact);
+    gameContract.setProvider(this.state.web3.currentProvider);
+    // hardcoded for using ganache test rpc
+    gameContract.defaults({
+      gas: 2100000,
+      gasPrice: 20000000000,
+    });
+    return gameContract.at(gameAddress);
+  }
+
+
+  setupInGameEventWatchers(gameInstance) {
+    var playMoveEvent = gameInstance.LogPlayerMove({}, { fromBlock: 0, toBlock: 'latest' });
+    playMoveEvent.watch((error, result) => {
+      if (!error) {
+        this.processPlayMoveEvent(result);
+      }
+    });
+    var revealMoveEvent = gameInstance.LogRevealMove({}, { fromBlock: 0, toBlock: 'latest' });
+    revealMoveEvent.watch((error, result) => {
+      if (!error) {
+        this.processRevealMoveEvent(result);
+      }
+    });
+  }
+
+  processPlayMoveEvent(result) {
+    console.log("play move event: " + JSON.stringify(result.args));
+    var gameAdd = result.args.game;
+    var playerAdd = result.args.player;
+    var secretMove = result.args.secretMove;
+    var gameMap = this.state.myGames;
+    var game = gameMap[gameAdd];
+    var players = game.players;
+    players.forEach(element => {
+      if (element.address == playerAdd) {
+        element.secretMove = secretMove;
+        this.setState({ myGames: gameMap });
+      }
+    });
+  }
+
+  processRevealMoveEvent(result) {
+    console.log("Reveled move event: " + JSON.stringify(result.args));
+    var gameAdd = result.args.game;
+    var playerAdd = result.args.player;
+    var revealedMove = result.args.move;
+    var gameMap = this.state.myGames;
+    var game = gameMap[gameAdd];
+    var players = game.players;
+    players.forEach(element => {
+      if (element.address == playerAdd) {
+        element.revealedMove = Number(revealedMove);
+        this.setState({ myGames: gameMap });
+      }
+    });
+  }
+
+  processGameJoinEvent(result) {
+    console.log("game joined " + JSON.stringify(result));
+    var joinLog = {
+      address: result.args.gameAddress,
+      player: result.args.player
+    };
+    var gameMap = this.state.myGames;
+    var gameAddr = joinLog.address;
+    var game = gameMap[gameAddr];
+    console.log("Game: " + JSON.stringify(game));
+    // game is undefined
+    var players = game.players;
+    players.forEach(element => {
+      console.log("checking joined: add " + element.address + ", joinLog " + joinLog.player);
+      if (element.address == joinLog.player) {
+        console.log("Setting joined true");
+        element.joined = true;
+        this.setState({ myGames: gameMap });
+      }
+    });
+    console.log("game joined: " + JSON.stringify(joinLog));
+  }
+
+  processGameResultEvent(result) {
+    console.log("Got game result event: " + JSON.stringify(result));
+    if (result.args.playerOne === this.state.user || result.args.playerTwo === this.state.user) {
+      var myGamesMap = this.state.myGames;
+      var game = myGamesMap[result.args.gameAddress];
+      if (game) {
+        game.complete = true;
+        game.result = result.args.result;
+        game.winningAmount = result.args.winningAmount;
+      }
+      myGamesMap[result.args.gameAddress] = game;
+      this.setState({ myGames: myGamesMap });
+    }
   }
 
   handleCreateGame = (player1, player2, cost) => {
@@ -237,22 +248,12 @@ class App extends Component {
 
   handlePlayMove = (gameAddress, move, password) => {
     console.log("handlePlayMove: " + gameAddress + "Play move: " + move + ", password: " + password);
-
-    const contract = require('truffle-contract')
-    const gameContract = contract(RpsContact)
-    gameContract.setProvider(this.state.web3.currentProvider)
-    // hardcoded for using ganache test rpc
-    gameContract.defaults({
-      gas: 2100000,
-      gasPrice: 20000000000,
-    })
-
-    var rps = gameContract.at(gameAddress);
+    var gameInstance = this.getGameContractInstance(gameAddress);
 
     // Create the secret move with the constant contract function and use the hashed result as the secret
-    rps.createSecretMove(this.state.user, move, password).then((result) => {
+    gameInstance.createSecretMove(this.state.user, move, password).then((result) => {
       console.log("result: " + JSON.stringify(result));
-      rps.playMove(result, { from: this.state.user }).then((txObj) => {
+      gameInstance.playMove(result, { from: this.state.user }).then((txObj) => {
         console.log("playMove success");
       }).catch((error) => {
         alert('Transaction failed - Unable to play move: ' + error);
@@ -263,29 +264,14 @@ class App extends Component {
   handleRevealMove = (gameAddress, move, password) => {
     console.log("GA: " + gameAddress + " Reveal move: " + move + ", password: " + password);
 
-    const contract = require('truffle-contract')
-    const gameContract = contract(RpsContact)
-    gameContract.setProvider(this.state.web3.currentProvider)
-    // hardcoded for using ganache test rpc
-    gameContract.defaults({
-      gas: 2100000,
-      gasPrice: 20000000000,
-    })
-
-    var rps = gameContract.at(gameAddress);
-    rps.revealMove(move, password, { from: this.state.user }).then((result) => {
+    var gameInstance = this.getGameContractInstance(gameAddress);
+    gameInstance.revealMove(move, password, { from: this.state.user }).then((result) => {
       console.log("result: " + JSON.stringify(result));
     }).catch((error) => {
       alert('Transaction failed - Unable to reveal move: ' + error);
     })
   }
 
-  // TODO 
-  // 1. Create UI component for Game,
-  //    - dropdown for move, button to play move
-  //    - button to reveal move
-  // 2. Result table - game - winning address - winning amount
-  //    
   render() {
     return (
       <div>
