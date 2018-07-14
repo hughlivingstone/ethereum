@@ -9,6 +9,7 @@ class MyGames extends React.Component {
                 games.push(
                     <Game
                         key={game.address}
+                        game={game}
                         players={game.players}
                         gameAddress={game.address}
                         user={this.props.user}
@@ -36,7 +37,7 @@ class Game extends React.Component {
     getDisplyState() {
         var joined = false;
         var userPlayedSecretMove = false;
-        var otherPlayedSecretMove = false
+        var otherPlayedSecretMove = false;
         this.props.players.forEach((player) => {
             if (player.address === this.props.user && player.joined) {
                 joined = true;
@@ -84,6 +85,7 @@ class Game extends React.Component {
                 <GameStatusTable
                     gameAddress={this.props.gameAddress}
                     players={this.props.players}
+                    cost={this.props.cost}
                 />
                 {this.getDisplyState()}
             </React.Fragment >
@@ -115,7 +117,6 @@ class GameStatusTable extends React.Component {
     render() {
         const gameAddress = this.props.gameAddress;
         const rows = [];
-        var joined = false;
         this.props.players.forEach((player) => {
             rows.push(
                 <PlayerRow
@@ -126,7 +127,7 @@ class GameStatusTable extends React.Component {
         });
         return (
             <React.Fragment>
-                <h3>Game: {gameAddress}</h3>
+                <h2>Game: {gameAddress} Cost: {this.props.cost}</h2>
                 <table className="pure-table">
                     <thead>
                         <tr>
@@ -158,18 +159,6 @@ class InitialState extends React.Component {
 
         return (
             <React.Fragment>
-                <h3>Game: {gameAddress}</h3>
-                <table className="pure-table">
-                    <thead>
-                        <tr>
-                            <th>Player Address</th>
-                            <th>Joined</th>
-                            <th>Secret Move</th>
-                            <th>Revealed Move</th>
-                        </tr>
-                    </thead>
-                    <tbody>{rows}</tbody>
-                </table>
                 <button className="pure-button pure-button-primary"
                     onClick={() => this.props.onJoinClick(this.props.gameAddress, this.props.cost)}>
                     Join
@@ -283,7 +272,7 @@ class FinishedState extends React.Component {
         }
         return (
             <div>
-                <h2> {message} </h2>
+                <h3> {message} </h3>
             </div>
         )
     }

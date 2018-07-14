@@ -3,15 +3,14 @@ import GameHubContract from '../build/contracts/GameHub.json'
 import RpsContact from '../build/contracts/RockPaperScissors.json'
 import getWeb3 from './utils/getWeb3'
 
-import CreateGame from './CreateGame.jsx'
-import GameTable from './GameTable.jsx'
-import MyGames from './PlayGame.jsx'
+import CreateGame from './components/CreateGame.jsx'
+import GameTable from './components/GameTable.jsx'
+import MyGames from './components/PlayGame.jsx'
 
 import './css/oswald.css'
 import './css/open-sans.css'
 import './css/pure-min.css'
 import './App.css'
-import { join } from 'path';
 
 class App extends Component {
   constructor(props) {
@@ -31,8 +30,6 @@ class App extends Component {
 
   componentWillMount() {
     // Get network provider and web3 instance.
-    // See utils/getWeb3 for more info.
-
     getWeb3
       .then(results => {
         this.setState({
@@ -46,20 +43,9 @@ class App extends Component {
         console.log('Error finding web3.')
       })
 
-    const GAMES = [
-      // { address: '12345', player1: 'Tash', player2: "Hugh", cost: '100000' },
-      // { address: 'sxxxx', player1: 'Josh', player2: "AMy", cost: '100000' },
-      // { address: '78910', player1: 'Ella', player2: "Theo", cost: '100000' }
-    ];
-
-    const PLAYERS = [
-      { address: '0x111111', joined: "Yes", secretMove: "0xS3cR3T", revealedMove: 'ROCK' },
-      { address: '0x123456', joined: '', secretMove: "", revealedMove: '' }
-    ];
-
     this.setState({
-      games: GAMES,
-      players: PLAYERS
+      games: [],
+      players: []
     })
   }
 
@@ -70,7 +56,6 @@ class App extends Component {
      * Normally these functions would be called in the context of a
      * state management library, but for convenience I've placed them here.
      */
-
     const contract = require('truffle-contract')
     const gameHubContract = contract(GameHubContract)
     gameHubContract.setProvider(this.state.web3.currentProvider)
@@ -138,8 +123,6 @@ class App extends Component {
 
                   var gameMap = this.state.myGames;
                   var game = gameMap[gameAdd];
-
-                  // game is undefined
                   var players = game.players;
 
                   players.forEach(element => {
@@ -193,7 +176,6 @@ class App extends Component {
             console.log("Game: " + JSON.stringify(game));
             // game is undefined
             var players = game.players;
-            console.log("PLayers: " + JSON.stringify(players));
 
             players.forEach(element => {
               console.log("checking joined: add " + element.address + ", joinLog " + joinLog.player)
@@ -209,7 +191,7 @@ class App extends Component {
         var gameResultEvent = instance.LogGameResult({}, { fromBlock: 0, toBlock: 'latest' });
 
         gameResultEvent.watch((error, result) => {
-  
+
           if (!error) {
             console.log("Got game result event: " + JSON.stringify(result));
             if (result.args.playerOne === this.state.user || result.args.playerTwo === this.state.user) {
@@ -237,22 +219,20 @@ class App extends Component {
       console.log(`Create the game! ${this.state.player1}, ${this.state.player2}, ${this.state.cost}!  user ${this.state.user}!`);
       return this.state.gameHubInstance.createRockPaperScissorsGame(this.state.player1, this.state.player2, this.state.cost, { from: this.state.user })
         .then(txObj => {
-          var gameys = [
-            {
-              address: txObj.logs[0].args.gameAddress,
-              player1: txObj.logs[0].args.playerOne,
-              player2: txObj.logs[0].args.playerTwo,
-              cost: txObj.logs[0].args.cost.toString(10)
-            }];
-
-          this.setState({ games: gameys });
-        });
+          console.log('Created game successful: ' + txObj.logs[0].args.gameAddress);
+        }).catch((error) => {
+          alert('Transaction failed - Unable to create game: ' + error);
+        });;
     });
   }
 
   handleJoinClick = (gameAddress, cost) => {
-    alert('Game address: ' + gameAddress + " " + cost);
-    this.state.gameHubInstance.joinGame(gameAddress, { from: this.state.user, value: cost })
+    console.log('Game address: ' + gameAddress + " " + cost);
+    this.state.gameHubInstance.joinGame(gameAddress, { from: this.state.user, value: cost }).then((tx) => {
+      console.log("Join game success: " + gameAddress);
+    }).catch((error) => {
+      alert('Transaction failed - Unable to join game: ' + gameAddress + ", error: " + error);
+    });
   }
 
   handlePlayMove = (gameAddress, move, password) => {
@@ -274,6 +254,8 @@ class App extends Component {
       console.log("result: " + JSON.stringify(result));
       rps.playMove(result, { from: this.state.user }).then((txObj) => {
         console.log("playMove success");
+      }).catch((error) => {
+        alert('Transaction failed - Unable to play move: ' + error);
       });
     })
   }
@@ -294,7 +276,7 @@ class App extends Component {
     rps.revealMove(move, password, { from: this.state.user }).then((result) => {
       console.log("result: " + JSON.stringify(result));
     }).catch((error) => {
-      alert('Transaction failed -Unable to reveal move: ' + error);
+      alert('Transaction failed - Unable to reveal move: ' + error);
     })
   }
 
@@ -328,6 +310,7 @@ class App extends Component {
             <h2>All Games</h2>
             <GameTable
               games={this.state.games}
+              user={this.state.user}
               onJoinClick={this.handleJoinClick}
             />
           </main>
