@@ -1,8 +1,4 @@
-
-
-
-> Written with [StackEdit](https://stackedit.io/).# ethereum
-Ethereum projects
+#Ethereum projects
 
 ## Rock Paper Scissors Game (rps-game)
 This is a sample rock paper scissors game written in solidity using React and pure-css for a basic UI.
